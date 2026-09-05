@@ -56,6 +56,7 @@ Deep technical design documents, database schemas, flowcharts, and testing speci
 | **[05. Database Design](docs/03_database_design.md)** | PostgreSQL 18.6 4-in-1 multi-paradigm engine, ER diagrams, schemas, HOT fillfactor tuning, and GIN `jsonb_path_ops` indexing. |
 | **[06. API & Auth Flows](docs/04_api_flows.md)** | Sequence diagrams for Local Login, Google OAuth2 PKCE S256, Refresh Token Rotation, Account Linking, and Multi-Paradigm APIs. |
 | **[07. Test Design & Strategy](docs/05_test_design.md)** | Detailed test strategy explaining *why* we test, *what* scenarios are covered across all 68 automated tests, and cyber-attack defense verifications. |
+| **[08. Setup & Execution Guide](docs/setup_guide.md)** | Step-by-step instructions for Windows, Linux, and macOS: prerequisites, vcpkg, Docker, building, running tests, and executing the API. |
 
 ---
 
