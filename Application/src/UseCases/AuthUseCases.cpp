@@ -414,6 +414,14 @@ Domain::Common::Result<Common::ApiResponse<DTOs::TokenResponse>> AuthUseCases::l
                 effectiveVerifier = cached->value;
                 // Single-use token: purge state from cache immediately to prevent replay attacks
                 m_cacheRepo->remove("pkce:state:" + request.state);
+            } else {
+                return Domain::Common::Result<Common::ApiResponse<DTOs::TokenResponse>>::err(
+                    Domain::Common::DomainError{
+                        .message = "Invalid or expired state",
+                        .statusCode = 401,
+                        .details = {"State parameter is invalid, forged, or has expired."}
+                    }
+                );
             }
         }
 
