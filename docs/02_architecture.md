@@ -103,7 +103,7 @@ Provides concrete implementations of the abstract ports defined in Domain and Ap
   * `OpenSslCrypto`: OpenSSL 3.x EVP wrappers for SHA-256, PBKDF2-HMAC-SHA256, and CSPRNG random generation.
   * `RsaKeyManager`: Generates 2048-bit RSA keypairs, manages key rotation (`kid`), and exports RFC 7517 compliant JWKS (`/.well-known/jwks.json`).
   * `JwtService`: Encodes and verifies RS256 JSON Web Tokens with expiry (`exp`), subject (`sub`), session ID (`sid`), and key ID (`kid`) validation.
-  * `GoogleAuthService`: RFC 7636 PKCE S256 verifier and challenge generation, OAuth 2.0 authorization URL construction, and Google token exchange.
+  * `GoogleAuthService`: RFC 7636 PKCE S256 verifier and challenge generation, OAuth 2.0 authorization URL construction, and Google token exchange via cross-platform HTTPS client (native `WinHttp` on Windows; POSIX `curl` on Linux/Docker).
 * **Configuration** (`Infrastructure/Config/`):
   * `EnvLoader`: Thread-safe parser for `.env` files with environment variable overrides and type conversion helpers.
 
