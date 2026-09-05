@@ -50,10 +50,12 @@ Deep technical design documents, database schemas, flowcharts, and testing speci
 | Document | Description |
 | :--- | :--- |
 | **[01. System Design](docs/01_system_design.md)** | High-level system design, ASIO reactor threading model, connection pooling, OpenSSL thread safety, and deployment topologies. |
-| **[02. Software Architecture](docs/02_architecture.md)** | Clean Architecture (Ports & Adapters), 5-layer design, C++20 concepts, and Railway-Oriented Programming (`Result<T, E>`). |
-| **[03. Database Design](docs/03_database_design.md)** | PostgreSQL 18.6 4-in-1 multi-paradigm engine, ER diagrams, schemas, HOT fillfactor tuning, and GIN `jsonb_path_ops` indexing. |
-| **[04. API & Auth Flows](docs/04_api_flows.md)** | Sequence diagrams for Local Login, Google OAuth2 PKCE S256, Refresh Token Rotation, Account Linking, and Multi-Paradigm APIs. |
-| **[05. Test Design & Strategy](docs/05_test_design.md)** | Detailed test strategy explaining *why* we test, *what* scenarios are covered across all 68 automated tests, and cyber-attack defense verifications. |
+| **[02. Software Architecture](docs/02_architecture.md)** | Detailed architecture overview, component interactions, and interface definitions. |
+| **[03. Clean Layer Architecture](docs/clean_architecture.md)** | Deep dive into the 5 Clean Architecture layers, C++20 concepts, compilation firewalls, and dependency inversion flows. |
+| **[04. Security Architecture](docs/security.md)** | Complete security manual: threat mitigation matrix, middleware pipeline, JWT lifecycle, key rotation, and real-time revocations. |
+| **[05. Database Design](docs/03_database_design.md)** | PostgreSQL 18.6 4-in-1 multi-paradigm engine, ER diagrams, schemas, HOT fillfactor tuning, and GIN `jsonb_path_ops` indexing. |
+| **[06. API & Auth Flows](docs/04_api_flows.md)** | Sequence diagrams for Local Login, Google OAuth2 PKCE S256, Refresh Token Rotation, Account Linking, and Multi-Paradigm APIs. |
+| **[07. Test Design & Strategy](docs/05_test_design.md)** | Detailed test strategy explaining *why* we test, *what* scenarios are covered across all 68 automated tests, and cyber-attack defense verifications. |
 
 ---
 
