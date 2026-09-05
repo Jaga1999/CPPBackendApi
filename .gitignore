@@ -1,0 +1,19 @@
+# Build artifacts
+out/
+build/
+
+# vcpkg local installations and downloads
+vcpkg_installed/
+.vcpkg/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Environment configuration secrets
+.env
+.env.test
+.env.*.local
+!.env.example
+
