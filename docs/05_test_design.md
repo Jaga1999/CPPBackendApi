@@ -19,9 +19,9 @@ In enterprise backend engineering, automated tests are not merely an afterthough
 CrowApi implements a multi-tier testing pyramid:
 
 ```mermaid
-pie title Test Suite Distribution - 68 Automated Tests
+pie title Test Suite Distribution - 70 Automated Tests
     "Unit Tests - Domain, App, Infra, Pres" : 38
-    "Security and Cyber-Attack Penetration" : 11
+    "Security and Cyber-Attack Penetration" : 13
     "Application and PKCE Security" : 5
     "Performance and Concurrency Benchmarks" : 4
     "End-to-End API Integration" : 5
@@ -37,9 +37,9 @@ Instead of pulling in heavyweight external frameworks like GoogleTest or Catch2 
 
 ---
 
-## 3. Comprehensive Breakdown of All 68 Automated Tests
+## 3. Comprehensive Breakdown of All 70 Automated Tests
 
-The automated test suite runs **68 tests** across **14 distinct categories**, asserting over **435 individual invariants** in ~3.2 seconds.
+The automated test suite runs **70 tests** across **14 distinct categories**, asserting over **443 individual invariants** in ~2.2 seconds.
 
 ---
 
@@ -187,22 +187,24 @@ Validates API serialization, standard envelopes, and logging middleware.
 
 ---
 
-### Category 13: `Security::CyberAttacks` (11 Penetration Tests)
+### Category 13: `Security::CyberAttacks` (13 Penetration Tests)
 Simulates automated malicious attacks to prove defense-in-depth mechanisms.
 
-| Test Name | Cyber Threat / Attack Vector Guarded Against | Penetration Test Scenario | Verification & Security Invariant |
-| :--- | :--- | :--- | :--- |
-| `SqlInjectionInRegistrationEmailBlocked` | **SQL Injection (CWE-89)**: Attacker attempts to bypass email uniqueness check or alter SQL syntax via injection strings. | Submits email: `' OR 1=1; DROP TABLE users; --@hack.com`. | Validator rejects input with `INVALID_EMAIL` before any database query is executed. |
-| `SqlInjectionInTodoRepositorySafe` | **SQL Injection in Data Layer**: Attacker injects SQL fragments into title or description search parameters. | Passes `' UNION SELECT * FROM users --` to repository. | libpqxx parameterized prepared statement treats payload as literal string; database remains secure. |
-| `XssPayloadsHandledAsLiteralStrings` | **Cross-Site Scripting (XSS / CWE-79)**: Attacker injects JavaScript tags into text fields. | Submits title: `<script>alert('pwned')</script>`. | System processes string as pure literal data; no executable context is created. |
-| `JwtSignatureTamperingRejected` | **Signature Bypass / Forgery**: Attacker alters user ID in JWT payload from normal user to admin without private key. | Modifies single character in the payload base64 string. | OpenSSL RS256 signature verification immediately fails with `INVALID_SIGNATURE`. |
-| `JwtAlgNoneVulnerabilityBlocked` | **Algorithm Confusion (CWE-327)**: Attacker sets header `{"alg": "none"}` to bypass verification. | Forges JWT header with `alg: "none"` and strips signature. | JwtService explicitly checks `alg == "RS256"`; rejects `none` with `UNSUPPORTED_ALGORITHM`. |
-| `JwtUnknownKeyIdRejected` | **Key Confusion / Injection**: Attacker signs token with own private key using arbitrary `kid`. | Submits token signed with rogue key under `kid: "attacker-key"`. | System searches JWKS for `kid`; finds no match and rejects token with `UNKNOWN_KEY_ID`. |
-| `BannedJtiTokenBlockedImmediately` | **Revoked Token Replay**: Attacker captures a token whose session has been revoked. | Submits validly signed JWT whose JTI is registered in `token_revocations`. | AuthContext checks `isJtiRevoked(jti)`; immediately rejects request with `401 Unauthorized`. |
-| `RefreshTokenReplayDetectedAndRevokesFamily` | **Refresh Token Theft & Reuse**: Attacker steals an already rotated refresh token and submits it. | Submits refresh token matching `previous_refresh_token_hash`. | System identifies token reuse, flags security alert, and **revokes all active sessions** for that user. |
-| `IdorAuthorizationBypassBlocked` | **Insecure Direct Object References (IDOR)**: User A attempts to view or delete User B's private session or task. | User A requests `DELETE /api/v1/sessions/<User-B-Session-Id>`. | Controller checks resource owner ID against authenticated token claims; blocks with `403 Forbidden`. |
-| `BruteForceTriggersAccountLockout` | **Credential Stuffing / Password Guessing**: Automated bot sends continuous login attempts. | Simulates 5 consecutive incorrect password attempts for user. | Account is locked for 15 minutes (`locked_until > now()`); 6th attempt returns `423 Locked`. |
-| `MalformedBase64DoesNotCrash` | **Memory Corruption / Buffer Overrun**: Attacker passes corrupted Base64URL strings. | Submits strings with invalid length, illegal characters, or binary garbage. | Base64 decoder safely returns failure without memory fault or buffer overrun. |
+| Test Name | Cyber Threat / Attack Vector Guarded Against | Penetration Test Scenario | Verification & Security Invariant | Usage & Architectural Importance |
+| :--- | :--- | :--- | :--- | :--- |
+| `SqlInjectionInRegistrationEmailBlocked` | **SQL Injection (CWE-89)**: Attacker attempts to bypass email uniqueness check or alter SQL syntax via injection strings. | Submits email: `' OR 1=1; DROP TABLE users; --@hack.com`. | Validator rejects input with `INVALID_EMAIL` before any database query is executed. | **Usage**: Pre-query input sanitization.<br/>**Importance**: Eliminates SQL injection risk at validation boundary. |
+| `SqlInjectionInTodoRepositorySafe` | **SQL Injection in Data Layer**: Attacker injects SQL fragments into title or description search parameters. | Passes `' UNION SELECT * FROM users --` to repository. | libpqxx parameterized prepared statement treats payload as literal string; database remains secure. | **Usage**: Data-layer escaping.<br/>**Importance**: Guarantees raw user strings never become executable SQL code. |
+| `XssPayloadsHandledAsLiteralStrings` | **Cross-Site Scripting (XSS / CWE-79)**: Attacker injects JavaScript tags into text fields. | Submits title: `<script>alert('pwned')</script>`. | System processes string as pure literal data; no executable context is created. | **Usage**: Payload neutralization.<br/>**Importance**: Eliminates stored XSS vectors across all text fields. |
+| `JwtSignatureTamperingRejected` | **Signature Bypass / Forgery**: Attacker alters user ID in JWT payload from normal user to admin without private key. | Modifies single character in the payload base64 string. | OpenSSL RS256 signature verification immediately fails with `INVALID_SIGNATURE`. | **Usage**: Token authentication gate.<br/>**Importance**: Enforces asymmetric cryptographic integrity on every incoming request. |
+| `JwtAlgNoneVulnerabilityBlocked` | **Algorithm Confusion (CWE-327)**: Attacker sets header `{"alg": "none"}` to bypass verification. | Forges JWT header with `alg: "none"` and strips signature. | JwtService explicitly checks `alg == "RS256"`; rejects `none` with `UNSUPPORTED_ALGORITHM`. | **Usage**: Algorithm enforcement.<br/>**Importance**: Prevents known CVEs where unauthenticated tokens with alg: none are accepted. |
+| `JwtUnknownKeyIdRejected` | **Key Confusion / Injection**: Attacker signs token with own private key using arbitrary `kid`. | Submits token signed with rogue key under `kid: "attacker-key"`. | System searches JWKS for `kid`; finds no match and rejects token with `UNKNOWN_KEY_ID`. | **Usage**: Registry verification.<br/>**Importance**: Blocks rogue key injection from untrusted signing authorities. |
+| `BannedJtiTokenBlockedImmediately` | **Revoked Token Replay**: Attacker captures a token whose session has been revoked. | Submits validly signed JWT whose JTI is registered in `token_revocations`. | AuthContext checks `isJtiRevoked(jti)`; immediately rejects request with `401 Unauthorized`. | **Usage**: Fast revocation gate.<br/>**Importance**: Enables instant, cluster-wide session invalidation without token expiration wait. |
+| `RefreshTokenReplayDetectedAndRevokesFamily` | **Refresh Token Theft & Reuse**: Attacker steals an already rotated refresh token and submits it. | Submits refresh token matching `previous_refresh_token_hash`. | System identifies token reuse, flags security alert, and **revokes all active sessions** for that user. | **Usage**: Automated intrusion containment.<br/>**Importance**: Neutralizes stolen refresh token cascades immediately. |
+| `IdorAuthorizationBypassBlocked` | **Insecure Direct Object References (IDOR)**: User A attempts to view or delete User B's private session or task. | User A requests `DELETE /api/v1/sessions/<User-B-Session-Id>`. | Controller checks resource owner ID against authenticated token claims; blocks with `403 Forbidden`. | **Usage**: Ownership boundary check.<br/>**Importance**: Prevents horizontal privilege escalation across multi-tenant user accounts. |
+| `BruteForceTriggersAccountLockout` | **Credential Stuffing / Password Guessing**: Automated bot sends continuous login attempts. | Simulates 5 consecutive incorrect password attempts for user. | Account is locked for 15 minutes (`locked_until > now()`); 6th attempt returns `423 Locked`. | **Usage**: Brute-force throttling.<br/>**Importance**: Renders automated dictionary and credential stuffing attacks ineffective. |
+| `MalformedBase64DoesNotCrash` | **Memory Corruption / Buffer Overrun**: Attacker passes corrupted Base64URL strings. | Submits strings with invalid length, illegal characters, or binary garbage. | Base64 decoder safely returns failure without memory fault or buffer overrun. | **Usage**: Binary parser robustness.<br/>**Importance**: Protects C++ memory space against memory corruption and denial-of-service crashes. |
+| `PkceSecretsNotExposedInHttpResponse` | **PKCE Secrets Information Disclosure (CWE-200 / CWE-598)**: Attacker inspects HTTP responses, proxy logs, or client memory to extract raw PKCE secrets. | Serializes `GoogleAuthUrlResponse` DTO containing `codeVerifier`, `codeChallenge`, and `state`. | Asserts that `codeVerifier`, `codeChallenge`, and `state` are completely omitted from response JSON; only `authUrl` is exposed. | **Usage**: HTTP response serialization filter.<br/>**Importance**: Enforces RFC 7636 §4.1 secrecy invariant by ensuring code verifiers and challenges are never leaked to clients. |
+| `ForgedPkceStateRejectedOnCallback` | **Cross-Site Request Forgery (CSRF / CWE-352) & Code Injection**: Attacker tricks user or sends forged callback with an unverified state. | Calls `loginWithGoogle` with `state = "attacker-forged-state-xyz"` not present in `cache_store`. | Query to PostgreSQL `cache_store` misses; backend rejects callback immediately with HTTP `401 Unauthorized` without calling Google. | **Usage**: Anti-CSRF state validation.<br/>**Importance**: Guarantees that only callbacks with legitimate, server-generated states can exchange authorization codes. |
 
 ---
 
@@ -227,7 +229,7 @@ Validates full HTTP wire communication, JSON serialization, and database persist
 | `JwksDiscoveryEndpoint` | Public key discovery for external API gateways. | `GET /.well-known/jwks.json` returns RFC 7517 JWKS payload with active RSA public keys. |
 | `FullAuthenticationAndSessionLifecycle` | Complete user lifecycle from registration to revocation. | 1. `POST /api/v1/auth/register`<br/>2. `POST /api/v1/auth/login`<br/>3. `POST /api/v1/auth/refresh`<br/>4. `GET /api/v1/sessions`<br/>5. `POST /api/v1/auth/logout`<br/>6. Verify subsequent request with old token is rejected. |
 | `RelationalSqlAndKvCacheAndQueueAndDocuments` | Comprehensive multi-paradigm verification via API. | Executes CRUD on `/api/todos`, Set/Get on `/api/cache`, Publish/Poll on `/api/queue`, and Store/Query on `/api/documents`. |
-| `GoogleAuthUrlAndPkceEndpoint` | Google OAuth 2.0 PKCE initiation endpoint. | `GET /api/v1/auth/google/url` returns Google authorization URL, verifies PKCE `codeChallenge`, and confirms state is cached in DB. |
+| `GoogleAuthUrlAndPkceEndpoint` | Google OAuth 2.0 PKCE initiation endpoint with privacy enforcement. | `GET /api/v1/auth/google/url` returns Google authorization URL, verifies `code_challenge` and `state` are embedded in `authUrl`, confirms raw `codeVerifier`, `codeChallenge`, and `state` are **NOT** leaked in the JSON body, and confirms `code_verifier` is securely cached in PostgreSQL `cache_store`. |
 
 ---
 

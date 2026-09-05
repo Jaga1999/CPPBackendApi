@@ -16,7 +16,7 @@ This documentation suite provides deep technical specifications, architectural d
 | **[04. Security Architecture](security.md)** | **Security Architecture & Middleware Pipeline** | Threat mitigation matrix, `extractAuthenticatedUser` middleware, RS256 JWT key rotation, session rotation, and PostgreSQL `LISTEN/NOTIFY` revocation. |
 | **[05. Database Design](03_database_design.md)** | **PostgreSQL 18.6 4-in-1 Multi-Paradigm Engine** | Technical specifications for unifying Relational SQL, Redis Key-Value caching (with TTL), Kafka Queue streaming (`FOR UPDATE SKIP LOCKED`), and MongoDB Document JSONB (`jsonb_path_ops` GIN). Includes schemas, HOT optimization (fillfactor), and indexing strategies. |
 | **[06. API & Auth Flows](04_api_flows.md)** | **API Flows, OAuth2 PKCE & Security Sequences** | Step-by-step sequence diagrams and flowcharts for Local Authentication, Google OAuth 2.0 / OIDC with RFC 7636 PKCE S256, Refresh Token Rotation, Session Revocation with PostgreSQL `LISTEN/NOTIFY`, and Multi-Paradigm APIs. |
-| **[07. Test Design & Strategy](05_test_design.md)** | **Test Strategy, Scenarios & Cyber-Security Testing** | Comprehensive breakdown of all 68 automated test suites across 14 categories. Explains *why* tests exist, *what* vulnerabilities they guard against (SQLi, XSS, JWT alg:none, token replay, IDOR, brute-force), and *how* they are executed via the zero-dependency test framework. |
+| **[07. Test Design & Strategy](05_test_design.md)** | **Test Strategy, Scenarios & Cyber-Security Testing** | Comprehensive breakdown of all 70 automated test suites across 14 categories. Explains *why* tests exist, *what* vulnerabilities they guard against (SQLi, XSS, JWT alg:none, token replay, IDOR, brute-force, PKCE disclosure, CSRF), and *how* they are executed via the zero-dependency test framework. |
 | **[08. Setup & Execution Guide](setup_guide.md)** | **Complete Machine Setup, Build & Run Guide** | Step-by-step instructions for Windows, Linux, and macOS: toolchain setup, vcpkg dependencies, Docker PostgreSQL, building, test running, and live API execution. |
 
 ---
@@ -75,7 +75,10 @@ CrowApi/
 ├── CMakeLists.txt                 # Root CMake build configuration
 ├── CMakePresets.json              # Standardized MSVC / Ninja build presets
 ├── vcpkg.json                     # Dependency manifests (crow, libpqxx, openssl, nlohmann-json)
-├── Dockerfile                     # Multi-stage production build container definition
+├── docker/                        # Dedicated Docker container artifacts
+│   ├── Dockerfile                 # Multi-stage production build container definition
+│   ├── docker-entrypoint.sh       # Container test runner & health gatekeeper
+│   └── .dockerignore              # Docker build exclusions
 ├── docker-compose.yml             # Local deployment with PostgreSQL 18.6
 ├── .env                           # Runtime environment configuration (untracked)
 ├── .env.example                   # Template environment configuration

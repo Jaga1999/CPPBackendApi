@@ -453,6 +453,96 @@ std::string OpenApiSpec::generateJson() {
         }
       }
     },
+    "/api/v1/auth/google/url": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Generate Google OAuth2 authorization URL with RFC 7636 PKCE",
+        "description": "Generates authorization URL containing S256 code_challenge and anti-CSRF state. The code_verifier is securely encapsulated in server-side cache and never returned to the client.",
+        "responses": {
+          "200": {
+            "description": "Google authorization URL generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authUrl": { "type": "string", "example": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=...&code_challenge=...&code_challenge_method=S256" }
+                  },
+                  "required": ["authUrl"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/google/callback": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Google OAuth2 redirect callback",
+        "description": "Processes Google redirect, validates anti-CSRF state token, evicts cached PKCE code verifier (single-use replay defense), exchanges authorization code with Google token endpoint, and issues RS256 JWT access and refresh tokens.",
+        "parameters": [
+          { "name": "code", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Google OAuth authorization code" },
+          { "name": "state", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Anti-CSRF state token" }
+        ],
+        "responses": {
+          "200": { "description": "Authentication successful, returns tokens and user profile" },
+          "401": { "description": "Invalid, forged, or expired state token" }
+        }
+      }
+    },
+    "/api/v1/auth/google": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Direct Google OAuth login with client-supplied PKCE or ID Token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string" },
+                  "codeVerifier": { "type": "string" },
+                  "idToken": { "type": "string" },
+                  "state": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Authentication successful, returns tokens and user profile" },
+          "401": { "description": "Invalid credentials or code verification failure" }
+        }
+      }
+    },
+    "/api/v1/auth/set-password": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Set password on Google-registered account (Bidirectional Account Linking)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["password"],
+                "properties": {
+                  "password": { "type": "string", "format": "password", "minLength": 8 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password set successfully. Account enabled for local password and Google OAuth login." },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": ["Sessions"],

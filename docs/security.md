@@ -70,6 +70,8 @@ flowchart TD
 | **Credential Stuffing / Brute-Force** | Medium | Failed attempt counter. 5 consecutive failures triggers 15-minute account lock (`locked_until`). | Tested in `Security::CyberAttacks/BruteForceTriggersAccountLockout` |
 | **Cross-Site Scripting (XSS / CWE-79)** | Medium | Pure JSON API. No HTML rendering. String inputs treated as literal data. | Tested in `Security::CyberAttacks/XssPayloadsHandledAsLiteralStrings` |
 | **Buffer Overrun / Corrupt Input** | High | Modern C++20 `std::string`, `std::string_view`, bounds-checked base64 decoding. | Tested in `Security::CyberAttacks/MalformedBase64DoesNotCrash` |
+| **PKCE Secrets Disclosure (CWE-200)** | High | Server-side secret encapsulation: `codeVerifier`, `codeChallenge`, and `state` omitted from HTTP JSON responses. | Tested in `Security::CyberAttacks/PkceSecretsNotExposedInHttpResponse` |
+| **Forged PKCE State Callback (CSRF)** | High | Strict cache validation on callback: unmapped, missing, or forged states rejected with 401 Unauthorized before token exchange. | Tested in `Security::CyberAttacks/ForgedPkceStateRejectedOnCallback` |
 
 ---
 
@@ -273,11 +275,81 @@ sequenceDiagram
 
 ---
 
-## 8. Summary of Hardened Security Defenses
+---
 
-1. **RFC 7636 PKCE S256**: All Google OAuth flows enforce Proof Key for Code Exchange using cryptographically random verifiers and SHA-256 challenges.
+## 8. RFC 7636 PKCE Security Architecture & Privacy Hardening
+
+### 8.1 The Security Dilemma: Authorization Code Interception & Secrets Leakage
+In standard OAuth 2.0 authorization code flows, the authorization server returns an authorization code via a browser redirect. On mobile devices, SPAs, and distributed environments, this code is vulnerable to interception (e.g., via malicious custom URI scheme handlers, rogue browser extensions, or network proxy logs).
+
+RFC 7636 (Proof Key for Code Exchange) eliminates this vulnerability by introducing a dynamic cryptographic secret (`code_verifier`) and its one-way hashed counterpart (`code_challenge`). However, naive implementations leak the secret back to the frontend client in JSON API responses, violating **CWE-200 (Exposure of Sensitive Information to an Unauthorized Actor)**.
+
+CrowApi enforces **Complete Server-Side Secret Encapsulation**:
+
+```mermaid
+flowchart TD
+    subgraph ClientPublic ["Public Domain (Browser / Mobile Client)"]
+        Resp["HTTP Response: 200 OK<br/>data: { authUrl: 'https://accounts.google.com/...' }<br/><b>codeVerifier, codeChallenge, state OMITTED</b>"]
+        BrowserNav["Browser Navigates to authUrl<br/>Query String: client_id, redirect_uri, <b>state</b>, <b>code_challenge</b>, S256"]
+        Resp --> BrowserNav
+    end
+
+    subgraph ServerPrivate ["Private Domain (CrowApi Backend & PostgreSQL)"]
+        Gen["OpenSSL CSPRNG<br/>1. code_verifier (64-char unreserved)<br/>2. state (128-bit nonce)"]
+        Hash["Compute One-Way Hash<br/>code_challenge = BASE64URL(SHA-256(verifier))"]
+        Store["Store in PostgreSQL cache_store (TTL: 600s)<br/>Key: 'pkce:state:' + state<br/>Value: code_verifier<br/><b>Isolated in memory/DB</b>"]
+        Gen --> Hash --> Store
+    end
+
+    subgraph GoogleIdP ["Google Identity Services"]
+        GoogleAuth["Google Authorization Server<br/>Receives: code_challenge & state<br/>Saves challenge fingerprint"]
+        GoogleToken["Google Token Endpoint<br/>POST /token<br/>Receives: code & code_verifier<br/>Validates: SHA256(verifier) == challenge"]
+    end
+
+    Store -.->|Embedded in authUrl| BrowserNav
+    BrowserNav -->|User Grants Consent| GoogleAuth
+    GoogleAuth -->|302 Redirect with code & state| Callback["CrowApi GET /api/v1/auth/google/callback"]
+    Callback -->|Evict verifier from cache| TokenReq["Direct Outbound TLS Back-Channel"]
+    TokenReq -->|Sends code_verifier| GoogleToken
+    GoogleToken -->|Issue ID & Access Tokens| Success["Authenticated Session Established"]
+```
+
+---
+
+### 8.2 Parameter Anatomy: Why Each Parameter Exists and How Opacity is Guaranteed
+
+| Parameter | Location | Is it Secret? | Why It Must Exist | How Opacity & Integrity Are Guaranteed |
+| :--- | :--- | :---: | :--- | :--- |
+| **`code_verifier`** | Kept in PostgreSQL `cache_store` only. Never in URL, never in JSON. | **YES (Master Secret)** | Required by Google's `/token` endpoint during server-to-server exchange to prove the entity requesting tokens is the one who initiated the flow. | **Zero Transmission**: Generated via OpenSSL `RAND_bytes`. Never sent to the client, never logged, and immediately deleted from PostgreSQL on callback. |
+| **`code_challenge`** | Query parameter inside `authUrl`. Omitted from JSON body. | **NO (Public Commitment)** | Mandatory for Google’s authorization endpoint (`https://accounts.google.com/o/oauth2/v2/auth`). Google must record this hash so it can verify the verifier later. | **One-Way SHA-256 Hash**: Because SHA-256 is mathematically irreversible, extracting `code_verifier` from `code_challenge` is computationally infeasible ($2^{256}$ operations). |
+| **`state`** | Query parameter inside `authUrl` and returned in Google callback. Omitted from JSON body. | **NO (Public Nonce)** | Mandatory OAuth 2.0 (RFC 6749 §10.12) protection against Cross-Site Request Forgery (CSRF). Binds browser callback to session. | **128-bit Cryptographic Nonce**: Generated via OpenSSL CSPRNG. Contains zero user identifiers, zero account info, and zero system timestamps. Acts as an opaque, single-use lookup token. |
+
+---
+
+### 8.3 Cyber-Attack Penetration Tests for PKCE
+
+CrowApi's test suite includes automated penetration tests in `Tests/Security/CyberAttacksTest.cpp` to prove that PKCE privacy and anti-forgery mechanisms cannot be bypassed:
+
+#### 1. `PkceSecretsNotExposedInHttpResponse`
+* **Threat Guarded Against**: **CWE-200 / CWE-598 (Information Disclosure)**. An attacker eavesdropping on client API traffic, inspecting client memory, or viewing client logs attempts to obtain the raw `codeVerifier`, `codeChallenge`, or `state`.
+* **Penetration Scenario**: The test executes `HttpResponseHelper::serializeGoogleAuthUrlDto` with populated DTO fields.
+* **Verification Invariant**: Asserts that substrings `"codeVerifier"`, `"codeChallenge"`, and the raw verifier string are completely absent from the serialized JSON string. Only `"authUrl"` is returned.
+* **Architectural Importance**: Prevents downstream clients (mobile apps, web SPAs) from accidentally logging or leaking cryptographic secrets.
+
+#### 2. `ForgedPkceStateRejectedOnCallback`
+* **Threat Guarded Against**: **Cross-Site Request Forgery (CSRF / CWE-352) & Code Injection**. An attacker intercepts an authorization code from an arbitrary user or crafts a malicious link directing an unsuspecting user to `/api/v1/auth/google/callback` with a forged `state`.
+* **Penetration Scenario**: Attacker invokes `loginWithGoogle` with `state = "attacker-forged-state-xyz"` that was never registered by the server.
+* **Verification Invariant**: Asserts that `loginWithGoogle` immediately fails with `Result::err`, returning HTTP **`401 Unauthorized`**. No request is dispatched to Google, and no session is created.
+* **Architectural Importance**: Guarantees that only callbacks originating from an authentic, server-initiated authorization flow can ever initiate a token exchange.
+
+---
+
+## 9. Summary of Hardened Security Defenses
+
+1. **RFC 7636 PKCE S256**: All Google OAuth flows enforce Proof Key for Code Exchange using cryptographically random verifiers and SHA-256 challenges, with complete server-side encapsulation.
 2. **Replay Attack Defenses**: Refresh tokens use hash rotation (`refresh_token_hash` and `previous_refresh_token_hash`). If an expired or already rotated token is replayed, the entire session family is automatically revoked.
 3. **Database Fault Recovery**: If the PostgreSQL container restarts, the connection pool detects connection failures, flushes stale file descriptors, and reconnects without crashing the web service.
 4. **Rate Limiting & Account Protection**: 5 consecutive failed login attempts automatically lock the user account for 15 minutes (`locked_until`), guarding against brute-force password discovery.
 5. **No plain tokens on disk**: Passwords hashed with PBKDF2 (100k rounds, 16-byte salt), refresh tokens hashed with SHA-256.
 6. **Strict ISO C++20 Memory Safety**: Zero manual `new`/`delete`; all lifetimes managed by RAII (`std::shared_ptr`, `std::unique_ptr`, `pqxx::work`, `EVP_PKEY_free`).
+7. **Comprehensive Penetration Testing**: 13 automated cyber-attack tests asserting resilience against SQLi, XSS, JWT tampering, algorithm confusion, key injection, token replay, IDOR, brute-force, buffer overflows, PKCE secret exposure, and forged CSRF states.

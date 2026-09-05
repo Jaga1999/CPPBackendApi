@@ -4,7 +4,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.6-336791.svg?style=flat&logo=postgresql)](https://www.postgresql.org/)
 [![Crow](https://img.shields.io/badge/Crow-Microframework-orange.svg?style=flat)](https://crowcpp.org/)
 [![OpenSSL](https://img.shields.io/badge/OpenSSL-3.x-721412.svg?style=flat&logo=openssl)](https://www.openssl.org/)
-[![Tests](https://img.shields.io/badge/Tests-68%2F68%20Passed-brightgreen.svg?style=flat)](#automated-testing-suite)
+[![Tests](https://img.shields.io/badge/Tests-70%2F70%20Passed-brightgreen.svg?style=flat)](#automated-testing-suite)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
 
 An enterprise-grade, high-throughput REST API backend built in **Modern ISO C++20** with the **Crow Microframework** (Boost.ASIO), **OpenSSL 3.x**, and **PostgreSQL 18.6** as a unified **4-in-1 Multi-Paradigm Engine** (Relational SQL, Redis-style KV Cache, Kafka-style Message Queue, and MongoDB-style JSONB Document Store).
@@ -55,15 +55,16 @@ Deep technical design documents, database schemas, flowcharts, and testing speci
 | **[04. Security Architecture](docs/security.md)** | Complete security manual: threat mitigation matrix, middleware pipeline, JWT lifecycle, key rotation, and real-time revocations. |
 | **[05. Database Design](docs/03_database_design.md)** | PostgreSQL 18.6 4-in-1 multi-paradigm engine, ER diagrams, schemas, HOT fillfactor tuning, and GIN `jsonb_path_ops` indexing. |
 | **[06. API & Auth Flows](docs/04_api_flows.md)** | Sequence diagrams for Local Login, Google OAuth2 PKCE S256, Refresh Token Rotation, Account Linking, and Multi-Paradigm APIs. |
-| **[07. Test Design & Strategy](docs/05_test_design.md)** | Detailed test strategy explaining *why* we test, *what* scenarios are covered across all 68 automated tests, and cyber-attack defense verifications. |
+| **[07. Test Design & Strategy](docs/05_test_design.md)** | Detailed test strategy explaining *why* we test, *what* scenarios are covered across all 70 automated tests, and cyber-attack defense verifications. |
 | **[08. Setup & Execution Guide](docs/setup_guide.md)** | Step-by-step instructions for Windows, Linux, and macOS: prerequisites, vcpkg, Docker, building, running tests, and executing the API. |
 
 ---
 
 ## Core Capabilities
 
-### 1. Google OAuth 2.0 / OIDC with RFC 7636 PKCE S256
+### 1. Google OAuth 2.0 / OIDC with RFC 7636 PKCE S256 & Privacy Hardening
 - **Proof Key for Code Exchange (PKCE)**: Eliminates authorization code interception attacks using OpenSSL CSPRNG 64-character verifiers and SHA-256 base64url-encoded challenges. Verified against RFC 7636 Appendix B test vectors.
+- **Complete Server-Side Secret Encapsulation**: Response payloads strictly omit `codeVerifier`, `codeChallenge`, and `state`, exposing only `authUrl`. The master `code_verifier` resides isolated in PostgreSQL `cache_store` with a 10-minute TTL.
 - **Single-Use Replay Protection**: CSRF `state` and `code_verifier` are cached in PostgreSQL `cache_store` with 600s TTL and **immediately evicted** upon token exchange.
 - **Dual Flow Support**:
   - Server-assisted flow (`GET /api/v1/auth/google/url` -> `GET /api/v1/auth/google/callback`).
@@ -232,6 +233,8 @@ CrowApi features a custom, zero-dependency, high-speed test harness asserting **
   [PASS] IdorAuthorizationBypassBlocked (15 us)
   [PASS] BruteForceTriggersAccountLockout (37403 us)
   [PASS] MalformedBase64DoesNotCrash (65 us)
+  [PASS] PkceSecretsNotExposedInHttpResponse (6 us)
+  [PASS] ForgedPkceStateRejectedOnCallback (283144 us)
 --- [Performance::Benchmarks] ---
   [PASS] ConnectionPoolHighConcurrencyLeasing (343356 us)
   [PASS] JwtRs256SigningAndVerificationThroughput (372948 us)
@@ -248,8 +251,8 @@ CrowApi features a custom, zero-dependency, high-speed test harness asserting **
   [PASS] GoogleAuthUrlAndPkceEndpoint (5923 us)
 =================================================================
   TEST EXECUTION SUMMARY
-  Total Executed : 68 | Passed : 68 | Failed : 0 | Assertions : 435
-  Total Time     : 3176 ms
+  Total Executed : 70 | Passed : 70 | Failed : 0 | Assertions : 443
+  Total Time     : 2242 ms
 =================================================================
 >>> OVERALL RESULT: ALL TESTS PASSED <<<
 ```
