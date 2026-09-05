@@ -11,6 +11,10 @@
 #include <windows.h>
 #include <winhttp.h>
 #pragma comment(lib, "winhttp.lib")
+#else
+#include <unistd.h>
+#include <cstdlib>
+#include <cstdio>
 #endif
 
 namespace Infrastructure::Security {
@@ -79,7 +83,21 @@ std::string GoogleAuthService::httpsGet(const std::wstring& host, const std::wst
     WinHttpCloseHandle(hSession);
     return response;
 #else
-    return "";
+    std::string hostStr(host.begin(), host.end());
+    std::string pathStr(path.begin(), path.end());
+    std::string url = "https://" + hostStr + pathStr;
+
+    std::string cmd = "curl -s -S --max-time 15 '" + url + "'";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return "";
+
+    std::string response;
+    char buffer[4096];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        response.append(buffer);
+    }
+    pclose(pipe);
+    return response;
 #endif
 }
 
@@ -131,7 +149,33 @@ std::string GoogleAuthService::httpsPost(
     WinHttpCloseHandle(hSession);
     return response;
 #else
-    return "";
+    std::string hostStr(host.begin(), host.end());
+    std::string pathStr(path.begin(), path.end());
+    std::string url = "https://" + hostStr + pathStr;
+
+    char tmpTemplate[] = "/tmp/crowapi_req_XXXXXX";
+    int fd = mkstemp(tmpTemplate);
+    if (fd == -1) return "";
+
+    ssize_t written = write(fd, body.data(), body.size());
+    close(fd);
+    if (written < 0 || static_cast<size_t>(written) != body.size()) {
+        unlink(tmpTemplate);
+        return "";
+    }
+
+    std::string cmd = "curl -s -S --max-time 15 -X POST -H 'Content-Type: " + contentType + "' --data-binary '@" + tmpTemplate + "' '" + url + "'";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    std::string response;
+    if (pipe) {
+        char buffer[4096];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            response.append(buffer);
+        }
+        pclose(pipe);
+    }
+    unlink(tmpTemplate);
+    return response;
 #endif
 }
 
