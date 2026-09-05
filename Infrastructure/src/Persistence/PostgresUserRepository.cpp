@@ -1,5 +1,6 @@
 #include "Infrastructure/Persistence/PostgresUserRepository.h"
 #include <iostream>
+#include <pqxx/pqxx>
 
 namespace Infrastructure::Persistence {
 
@@ -8,23 +9,24 @@ PostgresUserRepository::PostgresUserRepository(std::shared_ptr<PostgresDb> db)
 
 namespace {
 
-Domain::Entities::User mapUserRow(const auto& r) {
+template <typename RowType>
+Domain::Entities::User mapUserRow(const RowType& r) {
     Domain::Entities::User user{
-        .id = r[0].as<std::string>(),
-        .email = r[1].as<std::string>(),
-        .passwordHash = r[2].is_null() ? std::nullopt : std::make_optional(r[2].as<std::string>()),
-        .role = r[3].as<std::string>(),
-        .isActive = r[4].as<bool>(),
-        .failedLoginAttempts = r[5].as<int>()
+        .id = r[0].template as<std::string>(),
+        .email = r[1].template as<std::string>(),
+        .passwordHash = r[2].is_null() ? std::nullopt : std::make_optional(r[2].template as<std::string>()),
+        .role = r[3].template as<std::string>(),
+        .isActive = r[4].template as<bool>(),
+        .failedLoginAttempts = r[5].template as<int>()
     };
     if (!r[7].is_null()) {
-        user.googleId = r[7].as<std::string>();
+        user.googleId = r[7].template as<std::string>();
     }
     if (!r[8].is_null()) {
-        user.authProvider = r[8].as<std::string>();
+        user.authProvider = r[8].template as<std::string>();
     }
     if (!r[9].is_null()) {
-        user.avatarUrl = r[9].as<std::string>();
+        user.avatarUrl = r[9].template as<std::string>();
     }
     return user;
 }

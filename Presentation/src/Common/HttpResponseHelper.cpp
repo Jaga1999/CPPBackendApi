@@ -491,9 +491,6 @@ crow::json::wvalue HttpResponseHelper::serializeTokenDto(const Application::DTOs
 crow::json::wvalue HttpResponseHelper::serializeGoogleAuthUrlDto(const Application::DTOs::GoogleAuthUrlResponse& dto) {
     crow::json::wvalue val;
     val["authUrl"] = dto.authUrl;
-    val["state"] = dto.state;
-    val["codeVerifier"] = dto.codeVerifier;
-    val["codeChallenge"] = dto.codeChallenge;
     return val;
 }
 

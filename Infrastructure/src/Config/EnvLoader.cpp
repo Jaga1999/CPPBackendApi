@@ -114,11 +114,24 @@ bool EnvLoader::load(const std::string& filePath, bool overwriteExisting) {
         std::string value = parseValue(trimmed.substr(eqPos + 1));
 
         if (!key.empty()) {
-            bool alreadyInOs = !getOsEnv(key.c_str()).empty();
-            if (overwriteExisting || !alreadyInOs || s_envMap.find(key) == s_envMap.end()) {
+            std::string existingOsVal = getOsEnv(key.c_str());
+            bool alreadyInOs = !existingOsVal.empty();
+            bool alreadyInMap = (s_envMap.find(key) != s_envMap.end());
+
+            if (overwriteExisting) {
                 s_envMap[key] = value;
                 setOsEnv(key, value);
                 ++loadedCount;
+            } else {
+                if (alreadyInOs) {
+                    if (!alreadyInMap) {
+                        s_envMap[key] = existingOsVal;
+                    }
+                } else if (!alreadyInMap) {
+                    s_envMap[key] = value;
+                    setOsEnv(key, value);
+                    ++loadedCount;
+                }
             }
         }
     }

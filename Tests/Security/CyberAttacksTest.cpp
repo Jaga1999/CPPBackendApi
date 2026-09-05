@@ -9,7 +9,14 @@
 #include "Infrastructure/Persistence/PostgresSessionRepository.h"
 #include "Infrastructure/Security/JwtService.h"
 #include "Infrastructure/Security/OpenSslCrypto.h"
+#include "Infrastructure/Security/OpenSslCryptoAdapters.h"
 #include "Infrastructure/Security/RsaKeyManager.h"
+#include "Infrastructure/Security/GoogleAuthService.h"
+#include "Infrastructure/Persistence/PostgresCacheRepository.h"
+#include "Infrastructure/Persistence/PostgresAuditLogRepository.h"
+#include "Application/DTOs/GoogleAuthDtos.h"
+#include "Application/UseCases/AuthUseCases.h"
+#include "Presentation/Common/HttpResponseHelper.h"
 #include <chrono>
 
 static auto getAttackDb() {
@@ -246,4 +253,57 @@ TEST_CASE("Security::CyberAttacks", "MalformedBase64DoesNotCrash") {
     for (const auto& input : malformedInputs) {
         EXPECT_NO_THROW(Infrastructure::Security::OpenSslCrypto::base64UrlDecode(input));
     }
+}
+
+// 11. PKCE Code Verifier & Challenge Information Disclosure Defense
+TEST_CASE("Security::CyberAttacks", "PkceSecretsNotExposedInHttpResponse") {
+    Application::DTOs::GoogleAuthUrlResponse dto{
+        .authUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=123&state=abc&code_challenge=xyz",
+        .state = "super-secret-csrf-state-12345",
+        .codeVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        .codeChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+    };
+
+    auto serialized = Presentation::Common::HttpResponseHelper::serializeGoogleAuthUrlDto(dto);
+    std::string dump = serialized.dump();
+
+    // RFC 7636 security invariant: Server MUST NOT disclose raw code_verifier, code_challenge, or state in response
+    EXPECT_TRUE(dump.find("codeVerifier") == std::string::npos);
+    EXPECT_TRUE(dump.find("codeChallenge") == std::string::npos);
+    EXPECT_TRUE(dump.find("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk") == std::string::npos);
+    EXPECT_TRUE(dump.find("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM") == std::string::npos);
+
+    // Only authUrl must be provided to client
+    EXPECT_TRUE(dump.find("authUrl") != std::string::npos);
+}
+
+// 12. Forged PKCE State Rejected on Callback
+TEST_CASE("Security::CyberAttacks", "ForgedPkceStateRejectedOnCallback") {
+    auto db = getAttackDb();
+    auto userRepo = std::make_shared<Infrastructure::Persistence::PostgresUserRepository>(db);
+    auto sessionRepo = std::make_shared<Infrastructure::Persistence::PostgresSessionRepository>(db);
+    auto auditRepo = std::make_shared<Infrastructure::Persistence::PostgresAuditLogRepository>(db);
+    auto cacheRepo = std::make_shared<Infrastructure::Persistence::PostgresCacheRepository>(db);
+    auto keyMgr = std::make_shared<Infrastructure::Security::RsaKeyManager>("sec-key");
+    auto jwtService = std::make_shared<Infrastructure::Security::JwtService>(keyMgr, "test-iss", "test-aud");
+    auto pwdHasher = std::make_shared<Infrastructure::Security::OpenSslPasswordHasher>();
+    auto tokenGen = std::make_shared<Infrastructure::Security::OpenSslTokenGenerator>();
+    auto mockGoogle = std::make_shared<Infrastructure::Security::GoogleAuthService>("client-id", "client-secret", "http://localhost/callback");
+
+    Application::UseCases::AuthUseCases useCases(
+        userRepo, sessionRepo, auditRepo, jwtService, pwdHasher, tokenGen, mockGoogle, cacheRepo
+    );
+
+    // Attacker crafts callback with unknown state that was never issued by the server
+    Application::DTOs::GoogleLoginRequest evilReq{
+        .idToken = "",
+        .code = "stolen-or-fake-code",
+        .codeVerifier = "",
+        .state = "attacker-forged-state-xyz"
+    };
+
+    auto res = useCases.loginWithGoogle(evilReq, "192.168.1.100", "EvilBot/1.0");
+    // Must be rejected with 401 Unauthorized because no PKCE verifier exists in cache for this forged state
+    EXPECT_TRUE(res.isErr());
+    EXPECT_EQ(res.error().statusCode, 401);
 }

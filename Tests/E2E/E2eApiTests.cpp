@@ -427,13 +427,10 @@ TEST_CASE("E2E::GoogleAuth", "GoogleAuthUrlAndPkceEndpoint") {
     EXPECT_TRUE(json["success"].b());
 
     std::string authUrl = json["data"]["authUrl"].s();
-    std::string state = json["data"]["state"].s();
-    std::string codeVerifier = json["data"]["codeVerifier"].s();
-    std::string codeChallenge = json["data"]["codeChallenge"].s();
-
-    EXPECT_EQ(state, "test-e2e-state-token");
-    EXPECT_EQ(codeVerifier.length(), 64);
-    EXPECT_EQ(codeChallenge.length(), 43);
+    EXPECT_FALSE(authUrl.empty());
+    EXPECT_FALSE(json["data"].has("codeVerifier"));
+    EXPECT_FALSE(json["data"].has("codeChallenge"));
+    EXPECT_FALSE(json["data"].has("state"));
     EXPECT_TRUE(authUrl.find("code_challenge=") != std::string::npos);
     EXPECT_TRUE(authUrl.find("code_challenge_method=S256") != std::string::npos);
     EXPECT_TRUE(authUrl.find("state=test-e2e-state-token") != std::string::npos);

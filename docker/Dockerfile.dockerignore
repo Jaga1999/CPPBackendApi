@@ -1,0 +1,12 @@
+build/
+bin/
+out/
+vcpkg_installed/
+.vs/
+.git/
+.idea/
+*.user
+*.suo
+*.pdb
+*.obj
+*.exe

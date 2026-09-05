@@ -6,6 +6,7 @@ services:
   #   - Redis Alternative: Key-Value Cache with TTL (cache_store)
   #   - Kafka Alternative: Transactional Queue with SKIP LOCKED (message_queue)
   #   - MongoDB Alternative: JSONB Document Store with GIN index (documents)
+  #   - Enterprise Security: Users, Sessions, Audit Logs
   # ===================================================
   postgres:
     image: postgres:latest
@@ -22,34 +23,48 @@ services:
       - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d crowapi_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
     networks:
       - crowapi_network
 
   # ===================================================
   # 2. Modern C++20 Crow REST API Service
   # Clean Architecture (Domain, Application, Infrastructure, Presentation, Core)
+  # Healthy status requires:
+  #   1. Postgres readiness
+  #   2. 100% automated test verification passing
+  #   3. HTTP GET /health returning 200 OK
   # ===================================================
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     container_name: crowapi-service
     restart: unless-stopped
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: crowapi_db
       DB_USER: postgres
       DB_PASSWORD: postgres
+      PORT: 8080
+      LOG_LEVEL: info
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
     networks:
       - crowapi_network
 

@@ -25,9 +25,14 @@ target_link_libraries(Core PRIVATE
     Application
     Domain
     Crow::Crow
-    ws2_32
-    mswsock
 )
+
+if (WIN32)
+    target_link_libraries(Core PRIVATE
+        ws2_32
+        mswsock
+    )
+endif()
 
 if (MSVC)
     target_link_options(Core PRIVATE "/FORCE:MULTIPLE")

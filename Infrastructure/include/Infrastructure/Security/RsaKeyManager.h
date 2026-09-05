@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Application/Security/IKeyManager.h"
+#include <mutex>
 #include <shared_mutex>
 #include <string>
 #include <vector>

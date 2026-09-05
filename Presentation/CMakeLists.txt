@@ -44,9 +44,14 @@ target_include_directories(Presentation PUBLIC
 target_link_libraries(Presentation PUBLIC
     Application
     Crow::Crow
-    ws2_32
-    mswsock
 )
+
+if (WIN32)
+    target_link_libraries(Presentation PUBLIC
+        ws2_32
+        mswsock
+    )
+endif()
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES
     "include/Presentation/Common/HttpResponseHelper.h"
